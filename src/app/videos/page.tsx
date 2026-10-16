@@ -50,7 +50,6 @@ function Inner() {
 
   return (
     <>
-      <h1>المحتوى</h1>
       {loadError && <div className="msg" style={{ color: "var(--danger)" }}>{loadError}</div>}
       <AddForm onDone={load} />
       {loading && <p className="muted center">جاري التحميل...</p>}

@@ -11,5 +11,9 @@ export function unauthorized() {
 
 export function apiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return NextResponse.json({ error: message }, { status: 500 });
+  console.error("API request failed:", message);
+  return NextResponse.json(
+    { error: "حدث خطأ أثناء تنفيذ الطلب. حاول مرة أخرى، وإذا استمرت المشكلة راجع سجل الخادم." },
+    { status: 500 }
+  );
 }

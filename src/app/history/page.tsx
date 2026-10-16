@@ -43,7 +43,6 @@ function Inner() {
 
   return (
     <>
-      <h1>سجل النشر</h1>
       {error && <div className="msg" style={{ color: "var(--danger)" }}>{error}</div>}
       {loading && <p className="muted center">جاري التحميل...</p>}
       {!loading && rows.length === 0 && <p className="muted center">لسه مفيش نشر.</p>}

@@ -1,165 +1,97 @@
-"use client";
+import Link from "next/link";
+import { BrandLockup, Icon } from "@/components/Brand";
+import type { Metadata } from "next";
 
-import { useCallback, useEffect, useState } from "react";
-import AuthGate from "@/components/AuthGate";
-import { apiRequest, callPublish, fmt, STATUS_TEXT } from "@/lib/client";
-
-type Settings = { paused: boolean; min_gap_days: number; min_hours_between: number };
-type Post = {
-  id: string;
-  status: string;
-  fb_link: string | null;
-  error: string | null;
-  created_at: string;
-  video_title: string | null;
+export const metadata: Metadata = {
+  title: "KEMEX-HUB | إدارة المحتوى والنشر من مكان واحد",
+  description: "منصة عربية منظمة لإدارة مكتبة المحتوى والكابشنات ومتابعة النشر على Facebook.",
+  robots: { index: true, follow: true },
 };
 
-function titleOf(p: Post) {
-  return p.video_title ?? "—";
-}
+const features = [
+  { icon: "library", title: "مكتبة محتوى منظمة", text: "اجمع الصور والفيديوهات والريلز والكابشنات في مساحة واحدة سهلة الإدارة." },
+  { icon: "clock", title: "نشر تلقائي مدروس", text: "جهّز المحتوى مسبقًا واترك الجدولة تنفّذ النشر وفق قواعدك المحددة." },
+  { icon: "history", title: "سجل واضح لكل عملية", text: "تابع ما تم نشره، وافتح رابط المنشور، وراجع تفاصيل المحاولات التي لم تنجح." },
+  { icon: "shield", title: "تحكم آمن في الوصول", text: "جلسات دخول محمية، وكلمات مرور مشفّرة، وإتاحة التسجيل برمز دعوة." },
+];
 
-export default function Dashboard() {
+export default function LandingPage() {
   return (
-    <AuthGate>
-      <Inner />
-    </AuthGate>
-  );
-}
-
-function Inner() {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [stats, setStats] = useState({ total: 0, active: 0, eligible: 0, week: 0 });
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [gap, setGap] = useState("7");
-
-  const load = useCallback(async () => {
-    try {
-      const result = await apiRequest<{
-        settings: Settings;
-        stats: typeof stats;
-        posts: Post[];
-      }>("/api/dashboard");
-      setSettings(result.settings);
-      setGap(String(result.settings.min_gap_days));
-      setStats(result.stats);
-      setPosts(result.posts);
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : String(error));
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function publishNow() {
-    if (!confirm("تنشر الفيديو الجاي في الدور دلوقتي؟")) return;
-    setBusy(true);
-    setMsg("");
-    try {
-      const r = await callPublish({ force: true });
-      setMsg(
-        r.status === "success"
-          ? `اتنشر ✅ ${r.title ?? ""} ${r.link ?? ""}`
-          : r.error ?? STATUS_TEXT[r.status] ?? r.status
-      );
-      await load();
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function togglePause() {
-    if (!settings) return;
-    try {
-      await apiRequest("/api/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ paused: !settings.paused }),
-      });
-      await load();
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function saveGap() {
-    const n = Math.max(1, parseInt(gap || "7", 10) || 7);
-    try {
-      await apiRequest("/api/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ min_gap_days: n }),
-      });
-      await load();
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  return (
-    <>
-      <h1>الرئيسية</h1>
-
-      <div className="grid">
-        <div className="card stat"><b>{stats.total}</b><span>إجمالي المحتوى</span></div>
-        <div className="card stat"><b>{stats.active}</b><span>مفعّل</span></div>
-        <div className="card stat"><b>{stats.eligible}</b><span>جاهز للنشر</span></div>
-        <div className="card stat"><b>{stats.week}</b><span>اتنشر آخر 7 أيام</span></div>
-      </div>
-
-      {stats.eligible < 3 && (
-        <div className="card">
-          <span className="badge warn">تنبيه</span>{" "}
-          المخزون قليل ({stats.eligible} جاهز). ضيف فيديوهات أو كابشنات جديدة من صفحة المحتوى.
+    <main className="marketing-site">
+      <header className="marketing-header">
+        <Link href="/" className="brand-link" aria-label="KEMEX-HUB الرئيسية"><BrandLockup subtitle /></Link>
+        <nav className="marketing-nav" aria-label="التنقل الرئيسي">
+          <a href="#features">المميزات</a>
+          <a href="#workflow">طريقة العمل</a>
+        </nav>
+        <div className="header-actions">
+          <Link href="/login" className="button button-quiet">تسجيل الدخول</Link>
+          <Link href="/register" className="button button-primary">إنشاء حساب <Icon name="arrow" size={17} /></Link>
         </div>
-      )}
+      </header>
 
-      <div className="card">
-        <h2>التحكم</h2>
-        <div className="row">
-          <button className="btn" onClick={publishNow} disabled={busy}>
-            {busy ? "بينشر..." : "انشر الفيديو الجاي دلوقتي"}
-          </button>
-          <button className="btn ghost" onClick={togglePause}>
-            {settings?.paused ? "▶ شغّل النشر الأوتوماتيك" : "⏸ وقّف النشر الأوتوماتيك"}
-          </button>
-          {settings?.paused && <span className="badge warn">موقوف</span>}
-        </div>
-        <label>أقل عدد أيام قبل ما نفس الفيديو يتنشر تاني</label>
-        <div className="row">
-          <input style={{ width: 90 }} type="number" min={1} value={gap} onChange={(e) => setGap(e.target.value)} />
-          <button className="btn ghost small" onClick={saveGap}>حفظ</button>
-        </div>
-        {msg && <div className="msg">{msg}</div>}
-        <p className="muted">
-          النشر الأوتوماتيك بيتم من الجدولة (GitHub Actions) في المواعيد اللي إنت محددها هناك.
-        </p>
-      </div>
-
-      <div className="card">
-        <h2>آخر عمليات النشر</h2>
-        {posts.length === 0 && <p className="muted">لسه مفيش نشر.</p>}
-        {posts.map((p) => (
-          <div key={p.id} className="list-item">
-            <div className="row">
-              <span className={`badge ${p.status === "success" ? "ok" : "err"}`}>
-                {p.status === "success" ? "نجح" : "فشل"}
-              </span>
-              <b>{titleOf(p)}</b>
-            </div>
-            <div className="muted">
-              {fmt(p.created_at)}{" "}
-              {p.fb_link && (
-                <a href={p.fb_link} target="_blank" rel="noreferrer">فتح البوست</a>
-              )}
-            </div>
-            {p.error && <div className="muted" style={{ color: "var(--danger)" }}>{p.error}</div>}
+      <section className="hero-section">
+        <div className="hero-copy">
+          <div className="eyebrow"><span className="status-pulse" /> منصة واحدة. محتوى أوضح. نشر أسهل.</div>
+          <h1>إدارة محتواك أصبحت<br /><span>أبسط من أي وقت.</span></h1>
+          <p className="hero-description">KEMEX-HUB يجمع مكتبة المحتوى، والكابشنات، والنشر على فيسبوك وسجل العمليات في لوحة واحدة مصممة لتبقى مسيطرًا على كل خطوة.</p>
+          <div className="hero-actions">
+            <Link href="/register" className="button button-primary button-large">ابدأ باستخدام المنصة <Icon name="arrow" size={18} /></Link>
+            <Link href="/login" className="button button-outline button-large"><Icon name="play" size={17} /> لديّ حساب بالفعل</Link>
           </div>
-        ))}
-      </div>
-    </>
+          <div className="hero-trust-row">
+            <span><Icon name="check" size={16} /> إدارة محتوى مركزية</span>
+            <span><Icon name="check" size={16} /> قاعدة بيانات Neon</span>
+            <span><Icon name="check" size={16} /> واجهة عربية بالكامل</span>
+          </div>
+        </div>
+
+        <div className="hero-visual" aria-label="معاينة توضيحية للوحة التحكم">
+          <div className="visual-glow" />
+          <div className="dashboard-preview">
+            <div className="preview-topbar">
+              <div className="preview-window-dots"><i /><i /><i /></div>
+              <span className="preview-title">نظرة عامة</span>
+              <span className="preview-avatar">K</span>
+            </div>
+            <div className="preview-body">
+              <div className="preview-greeting"><div><small>معاينة توضيحية · مساحة العمل</small><h3>أهلًا بعودتك 👋</h3></div><span className="preview-live"><i /> مباشر</span></div>
+              <div className="preview-stat-grid">
+                <div className="preview-stat"><span>إجمالي المحتوى</span><strong>128</strong><small className="positive">↗ مكتبتك في مكان واحد</small></div>
+                <div className="preview-stat"><span>منشورات ناجحة</span><strong>94</strong><small className="positive">↗ سجل قابل للمراجعة</small></div>
+                <div className="preview-stat"><span>جاهز للنشر</span><strong>12</strong><small>محتوى نشط</small></div>
+              </div>
+              <div className="preview-lower">
+                <div className="preview-chart-card"><div className="preview-card-heading"><b>نشاط النشر</b><span>آخر 7 أيام</span></div><div className="fake-chart"><div style={{ height: "36%" }} /><div style={{ height: "52%" }} /><div style={{ height: "43%" }} /><div style={{ height: "74%" }} /><div style={{ height: "58%" }} /><div style={{ height: "88%" }} /><div style={{ height: "67%" }} /></div><div className="fake-chart-labels"><span>س</span><span>ح</span><span>ن</span><span>ث</span><span>ر</span><span>خ</span><span>ج</span></div></div>
+                <div className="preview-activity"><div className="preview-card-heading"><b>آخر العمليات</b><span>عرض الكل</span></div><div className="preview-activity-row"><span className="mini-activity-icon"><Icon name="check" size={14} /></span><div><b>منشور جديد</b><small>تمت العملية بنجاح</small></div><span className="tiny-dot success-dot" /></div><div className="preview-activity-row"><span className="mini-activity-icon alternate"><Icon name="clock" size={14} /></span><div><b>محتوى في المكتبة</b><small>جاهز للمراجعة</small></div><span className="tiny-dot" /></div></div>
+              </div>
+            </div>
+          </div>
+          <div className="floating-chip chip-publishing"><span className="chip-icon"><Icon name="facebook" size={18} /></span><span><b>إدارة النشر</b><small>من مكان واحد</small></span><Icon name="check" size={17} className="chip-check" /></div>
+          <div className="floating-chip chip-automation"><span className="automation-icon"><Icon name="spark" size={19} /></span><span><b>تنظيم أذكى</b><small>تفاصيل واضحة دائمًا</small></span></div>
+        </div>
+      </section>
+
+      <section className="metric-strip" aria-label="ملخص المنصة">
+        <div><strong>01</strong><span>مكتبة موحّدة للمحتوى</span></div>
+        <div><strong>02</strong><span>كابشنات قابلة لإعادة الاستخدام</span></div>
+        <div><strong>03</strong><span>متابعة للنشر والنتائج</span></div>
+        <div><strong>24/7</strong><span>تنبيهات اختيارية للفريق</span></div>
+      </section>
+
+      <section className="features-section" id="features">
+        <div className="section-heading"><span className="section-kicker">كل الأدوات الأساسية في مكان واحد</span><h2>أقل تشتتًا. <span>تحكم أكبر.</span></h2><p>بدل التنقل بين الملفات والرسائل والجداول، تابع دورة المحتوى من التحضير وحتى النشر.</p></div>
+        <div className="feature-grid">{features.map((feature, index) => <article className="feature-card" key={feature.title}><span className="feature-icon"><Icon name={feature.icon} size={23} /></span><span className="feature-number">0{index + 1}</span><h3>{feature.title}</h3><p>{feature.text}</p><span className="feature-arrow"><Icon name="arrow" size={17} /></span></article>)}</div>
+      </section>
+
+      <section className="workflow-section" id="workflow">
+        <div className="workflow-copy"><span className="section-kicker">خطوات واضحة من البداية</span><h2>من تجهيز المحتوى<br />إلى <span>المنشور النهائي.</span></h2><p>صمّم سير عمل بسيطًا لفريقك: أضف المحتوى، حضّر أكثر من صياغة، ثم تابع عمليات النشر من لوحة التحكم.</p><Link href="/register" className="text-link">افتح مساحة العمل <Icon name="arrow" size={17} /></Link></div>
+        <div className="workflow-steps"><div className="workflow-line" /><article><span className="step-number">01</span><div><h3>أضف المحتوى</h3><p>سجّل عنوانًا واضحًا ورابطًا مباشرًا للوسائط وحدّد النوع.</p></div><Icon name="library" size={21} /></article><article><span className="step-number">02</span><div><h3>جهّز الكابشنات</h3><p>احتفظ بصيغ متعددة مع المحتوى لتسهيل إدارة النشر.</p></div><Icon name="spark" size={21} /></article><article><span className="step-number">03</span><div><h3>انشر وراجع النتيجة</h3><p>استخدم النشر اليدوي أو الجدولة، وارجع إلى سجل العمليات عند الحاجة.</p></div><Icon name="history" size={21} /></article></div>
+      </section>
+
+      <section className="cta-section"><div className="cta-decoration" /><div><span className="section-kicker">مساحة عملك التالية تبدأ هنا</span><h2>خلّي إدارة المحتوى أكثر تنظيمًا.</h2><p>سجّل برمز الدعوة الخاص بفريقك وابدأ في إدارة المحتوى من لوحة واحدة.</p></div><Link href="/register" className="button button-light button-large">إنشاء حساب <Icon name="arrow" size={18} /></Link></section>
+
+      <footer className="marketing-footer"><Link href="/" className="brand-link"><BrandLockup size={34} /></Link><span>© {new Date().getFullYear()} KEMEX-HUB. جميع الحقوق محفوظة.</span><div><Link href="/login">تسجيل الدخول</Link><Link href="/register">إنشاء حساب</Link></div></footer>
+    </main>
   );
 }
