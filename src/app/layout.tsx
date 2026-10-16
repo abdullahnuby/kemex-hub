@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "KEMEX HUB",
   description: "إدارة نشر ومحتوي على فيسبوك",
+  icons: { icon: "/favicon.svg" },
 };
 
 export const viewport: Viewport = {
