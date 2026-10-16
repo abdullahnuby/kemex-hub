@@ -40,18 +40,27 @@ export async function POST(req: Request) {
         .map((text: string) => text.trim())
       : [];
 
-    if (!title || !mediaUrl || !["photo", "video", "reel"].includes(kind)) {
+    let mediaProtocol = "";
+    try {
+      mediaProtocol = new URL(mediaUrl).protocol;
+    } catch {
+      return NextResponse.json({ error: "رابط الوسائط غير صالح" }, { status: 400 });
+    }
+    if (
+      !title ||
+      !["http:", "https:"].includes(mediaProtocol) ||
+      !["photo", "video", "reel"].includes(kind)
+    ) {
       return NextResponse.json({ error: "بيانات المحتوى غير صالحة" }, { status: 400 });
     }
 
     const rows = await database()`
       WITH new_video AS (
-        INSERT INTO videos (title, product, media_url, storage_path, kind)
+        INSERT INTO videos (title, product, media_url, kind)
         VALUES (
           ${title},
           ${typeof body.product === "string" && body.product.trim() ? body.product.trim() : null},
           ${mediaUrl},
-          ${typeof body.storage_path === "string" ? body.storage_path : null},
           ${kind}
         )
         RETURNING id

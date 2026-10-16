@@ -1,5 +1,3 @@
-import { sb } from "./supabase-browser";
-
 export type PublishStatus = "success" | "paused" | "skipped_recent" | "no_video" | "error";
 
 export const STATUS_TEXT: Record<string, string> = {
@@ -11,32 +9,32 @@ export const STATUS_TEXT: Record<string, string> = {
 };
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const { data } = await sb().auth.getSession();
-  if (!data.session) throw new Error("غير مصرح");
-
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${data.session.access_token}`);
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error ?? `HTTP ${res.status}`);
   return payload as T;
 }
 
 export async function callPublish(body: Record<string, unknown>) {
-  const { data } = await sb().auth.getSession();
   const res = await fetch("/api/publish", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${data.session?.access_token ?? ""}`,
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify(body),
   });
-  return (await res.json().catch(() => ({ status: "error", error: `HTTP ${res.status}` }))) as {
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok && !payload.status) {
+    return {
+      status: "error" as const,
+      error: payload.error ?? `HTTP ${res.status}`,
+    };
+  }
+  return payload as {
     status: PublishStatus;
     title?: string;
     link?: string;

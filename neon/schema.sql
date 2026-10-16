@@ -7,7 +7,6 @@ create table if not exists videos (
   title text not null,
   product text,
   media_url text not null,
-  storage_path text,
   kind text not null default 'video' check (kind in ('photo', 'video', 'reel')),
   active boolean not null default true,
   times_posted int not null default 0,
@@ -43,6 +42,13 @@ create table if not exists settings (
   min_hours_between int not null default 3
 );
 insert into settings (id) values (1) on conflict (id) do nothing;
+
+create table if not exists user_accounts (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  created_at timestamptz not null default now()
+);
 
 create index if not exists captions_video_idx on captions(video_id);
 create index if not exists posts_created_idx on posts(created_at desc);

@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { admin } from "@/lib/supabase-admin";
+import { readSession } from "@/lib/session";
 
 export async function isAuthorized(req: Request): Promise<boolean> {
-  const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) return false;
-
-  const { data, error } = await admin().auth.getUser(token);
-  return !error && !!data.user;
+  return !!readSession(req);
 }
 
 export function unauthorized() {

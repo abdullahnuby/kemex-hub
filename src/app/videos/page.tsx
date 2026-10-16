@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
-import { sb } from "@/lib/supabase-browser";
 import { apiRequest, callPublish, fmt, STATUS_TEXT } from "@/lib/client";
 
 type Caption = { id: string; text: string; times_used: number };
@@ -12,7 +11,6 @@ type Video = {
   title: string;
   product: string | null;
   media_url: string;
-  storage_path: string | null;
   kind: Kind;
   active: boolean;
   times_posted: number;
@@ -21,7 +19,6 @@ type Video = {
 };
 
 const KIND_TEXT: Record<Kind, string> = { reel: "ريل", video: "فيديو", photo: "صورة" };
-const MAX_MB = 50;
 
 export default function VideosPage() {
   return (
@@ -71,7 +68,6 @@ function AddForm({ onDone }: { onDone: () => void }) {
   const [product, setProduct] = useState("");
   const [kind, setKind] = useState<Kind>("reel");
   const [url, setUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
   const [captions, setCaptions] = useState(["", "", ""]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -81,23 +77,12 @@ function AddForm({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setErr("");
     try {
-      const db = sb();
-      let mediaUrl = url.trim();
-      let storagePath: string | null = null;
-
-      if (file) {
-        if (file.size > MAX_MB * 1024 * 1024) {
-          throw new Error(`الملف أكبر من ${MAX_MB}MB. ضغطه، أو ارفعه في مكان تاني وحط الرابط المباشر.`);
-        }
-        const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
-        storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error } = await db.storage
-          .from("media")
-          .upload(storagePath, file, { contentType: file.type, upsert: false });
-        if (error) throw error;
-        mediaUrl = db.storage.from("media").getPublicUrl(storagePath).data.publicUrl;
+      const mediaUrl = url.trim();
+      if (!mediaUrl) throw new Error("حط رابطًا مباشرًا عامًا للملف");
+      const parsedUrl = new URL(mediaUrl);
+      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+        throw new Error("الرابط لازم يبدأ بـ https:// أو http://");
       }
-      if (!mediaUrl) throw new Error("ارفع ملف أو حط رابط مباشر للفيديو");
 
       const caps = captions.map((c) => c.trim()).filter(Boolean);
       await apiRequest("/api/videos", {
@@ -107,12 +92,11 @@ function AddForm({ onDone }: { onDone: () => void }) {
           product,
           kind,
           media_url: mediaUrl,
-          storage_path: storagePath,
           captions: caps,
         }),
       });
 
-      setTitle(""); setProduct(""); setUrl(""); setFile(null); setCaptions(["", "", ""]); setOpen(false);
+      setTitle(""); setProduct(""); setUrl(""); setCaptions(["", "", ""]); setOpen(false);
       onDone();
     } catch (ex: any) {
       setErr(ex?.message ?? String(ex));
@@ -142,11 +126,9 @@ function AddForm({ onDone }: { onDone: () => void }) {
         <option value="video">فيديو عادي</option>
         <option value="photo">صورة</option>
       </select>
-      <label>ارفع الملف (حتى {MAX_MB}MB)</label>
-      <input type="file" accept="video/*,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      <label>أو رابط مباشر عام للملف (لو مرفعتش ملف)</label>
+      <label>رابط مباشر عام للصورة أو الفيديو</label>
       <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." dir="ltr" />
-      <p className="muted">رابط جوجل درايف العادي مش هيشتغل، لازم رابط تحميل مباشر.</p>
+      <p className="muted">ارفع الملف على استضافة خارجية، ثم ضع رابطًا مباشرًا عامًا يمكن لفيسبوك الوصول إليه. رابط جوجل درايف العادي لا يعمل.</p>
 
       <label>الكابشنات (3 على الأقل، كل مرة بيتنشر بكابشن مختلف)</label>
       {captions.map((c, i) => (
@@ -163,7 +145,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
       </button>
 
       <div className="row" style={{ marginTop: 14 }}>
-        <button className="btn" disabled={busy}>{busy ? "بيرفع..." : "حفظ"}</button>
+        <button className="btn" disabled={busy}>{busy ? "بيحفظ..." : "حفظ"}</button>
         <button type="button" className="btn ghost" onClick={() => setOpen(false)}>إلغاء</button>
       </div>
       {err && <div className="msg" style={{ color: "var(--danger)" }}>{err}</div>}
@@ -176,7 +158,6 @@ function VideoCard({ v, onChange }: { v: Video; onChange: () => void }) {
   const [newCap, setNewCap] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const db = sb();
 
   async function toggle() {
     await apiRequest(`/api/videos/${v.id}`, {
@@ -188,7 +169,6 @@ function VideoCard({ v, onChange }: { v: Video; onChange: () => void }) {
 
   async function remove() {
     if (!confirm("متأكد إنك عايز تمسح ده نهائيًا؟")) return;
-    if (v.storage_path) await db.storage.from("media").remove([v.storage_path]);
     await apiRequest(`/api/videos/${v.id}`, { method: "DELETE" });
     onChange();
   }

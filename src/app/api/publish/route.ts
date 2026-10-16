@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
-import { admin } from "@/lib/supabase-admin";
+import { readSession } from "@/lib/session";
 import { runPublish } from "@/lib/publisher";
 
 export const dynamic = "force-dynamic";
@@ -13,21 +13,15 @@ function safeEqual(a: string, b: string) {
 }
 
 // "cron" = الجدولة (بالسر)، "user" = أنت من الموقع (بجلسة تسجيل الدخول)
-async function whoIsCalling(req: Request): Promise<"cron" | "user" | null> {
+function whoIsCalling(req: Request): "cron" | "user" | null {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) return null;
   const secret = process.env.CRON_SECRET;
-  if (secret && safeEqual(token, secret)) return "cron";
-  try {
-    const { data } = await admin().auth.getUser(token);
-    return data?.user ? "user" : null;
-  } catch {
-    return null;
-  }
+  if (token && secret && safeEqual(token, secret)) return "cron";
+  return readSession(req) ? "user" : null;
 }
 
 export async function POST(req: Request) {
-  const who = await whoIsCalling(req);
+  const who = whoIsCalling(req);
   if (!who) {
     return NextResponse.json({ status: "error", error: "غير مصرح" }, { status: 401 });
   }

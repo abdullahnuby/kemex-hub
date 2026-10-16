@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { sb } from "@/lib/supabase-browser";
 
 export default function Login() {
   const router = useRouter();
@@ -15,10 +14,21 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     setErr("");
-    const { error } = await sb().auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) setErr("الإيميل أو الباسورد غلط");
-    else router.replace("/");
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json();
+      if (!response.ok) setErr(result.error ?? "تعذر تسجيل الدخول");
+      else router.replace("/");
+    } catch {
+      setErr("تعذر الاتصال بالخادم");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

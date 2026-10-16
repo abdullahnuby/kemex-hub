@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { sb } from "@/lib/supabase-browser";
 
 const LINKS = [
   { href: "/", label: "الرئيسية" },
@@ -17,16 +16,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
   useEffect(() => {
-    sb()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (!data.session) router.replace("/login");
+    fetch("/api/auth/session", { credentials: "same-origin" })
+      .then((response) => {
+        if (!response.ok) router.replace("/login");
         else setReady(true);
-      });
+      })
+      .catch(() => router.replace("/login"));
   }, [router]);
 
   async function logout() {
-    await sb().auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
     router.replace("/login");
   }
 
