@@ -52,3 +52,22 @@ create table if not exists user_accounts (
 
 create index if not exists captions_video_idx on captions(video_id);
 create index if not exists posts_created_idx on posts(created_at desc);
+
+
+-- Authentication bootstrap and one-time invitation codes are managed by the app.
+create table if not exists kemex_hub_auth_state (
+  id smallint primary key check (id = 1),
+  bootstrap_completed boolean not null default false
+);
+insert into kemex_hub_auth_state (id, bootstrap_completed)
+select 1, exists (select 1 from user_accounts)
+on conflict (id) do nothing;
+
+create table if not exists kemex_hub_registration_invites (
+  id uuid primary key default gen_random_uuid(),
+  token_hash text not null unique,
+  created_by uuid references user_accounts(id) on delete set null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);

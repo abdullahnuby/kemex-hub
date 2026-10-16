@@ -1,14 +1,25 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync } from "node:crypto";
 import { NextResponse } from "next/server";
-import { database } from "@/lib/neon";
 import { createSession, SESSION_COOKIE } from "@/lib/session";
+import { registrationDatabase } from "@/lib/registration";
 
 export const dynamic = "force-dynamic";
 
-function matchesInviteCode(supplied: string, expected: string) {
-  const suppliedBytes = Buffer.from(supplied);
-  const expectedBytes = Buffer.from(expected);
-  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+function tokenHash(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+
+function setSessionCookie(response: NextResponse, user: { id: string; email: string }) {
+  const session = createSession(user.id, user.email);
+  response.cookies.set(SESSION_COOKIE, session.token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: session.maxAge,
+  });
+  return response;
 }
 
 export async function POST(req: Request) {
@@ -40,46 +51,82 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "كلمتا المرور غير متطابقتين." }, { status: 400 });
     }
 
-    const sessionSecret = process.env.SESSION_SECRET;
-    if (!sessionSecret || Buffer.byteLength(sessionSecret) < 32) {
-      return NextResponse.json({ error: "إعدادات الجلسة غير مكتملة. تواصل مع مسؤول المنصة." }, { status: 503 });
-    }
-
-    const requiredInviteCode = process.env.REGISTRATION_INVITE_CODE;
-    if (!requiredInviteCode) {
-      return NextResponse.json({ error: "التسجيل غير مفعّل بعد. اطلب من مسؤول المنصة إعداد رمز الدعوة." }, { status: 503 });
-    }
-    if (!inviteCode || !matchesInviteCode(inviteCode, requiredInviteCode)) {
-      return NextResponse.json({ error: "رمز الدعوة غير صحيح." }, { status: 403 });
-    }
-
+    const sql = await registrationDatabase();
     const salt = randomBytes(16);
     const hash = scryptSync(password, salt, 64);
     const passwordHash = `${salt.toString("base64url")}.${hash.toString("base64url")}`;
-    const users = await database()`
-      INSERT INTO user_accounts (email, password_hash)
-      VALUES (${email}, ${passwordHash})
-      ON CONFLICT (email) DO NOTHING
-      RETURNING id, email
-    `;
 
-    const user = users[0] as { id: string; email: string } | undefined;
-    if (!user) {
-      return NextResponse.json({ error: "يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل." }, { status: 409 });
+    if (inviteCode) {
+      const digest = tokenHash(inviteCode);
+      const users = await sql`
+        WITH valid_invite AS MATERIALIZED (
+          SELECT id
+          FROM kemex_hub_registration_invites
+          WHERE token_hash = ${digest}
+            AND used_at IS NULL
+            AND expires_at > now()
+          FOR UPDATE
+        ), new_user AS (
+          INSERT INTO user_accounts (email, password_hash)
+          SELECT ${email}, ${passwordHash} FROM valid_invite
+          ON CONFLICT (email) DO NOTHING
+          RETURNING id, email
+        ), consumed_invite AS (
+          UPDATE kemex_hub_registration_invites AS invitation
+          SET used_at = now()
+          WHERE invitation.id IN (SELECT id FROM valid_invite)
+            AND EXISTS (SELECT 1 FROM new_user)
+          RETURNING invitation.id
+        )
+        SELECT id, email FROM new_user
+      `;
+
+      const user = users[0] as { id: string; email: string } | undefined;
+      if (user) {
+        const response = NextResponse.json({ authenticated: true, email: user.email }, { status: 201 });
+        return setSessionCookie(response, user);
+      }
+
+      const existing = await sql`SELECT id FROM user_accounts WHERE email = ${email} LIMIT 1`;
+      if (existing.length) {
+        return NextResponse.json({ error: "يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل." }, { status: 409 });
+      }
+      return NextResponse.json({ error: "رمز الدعوة غير صالح أو منتهي الصلاحية أو تم استخدامه سابقًا." }, { status: 403 });
     }
 
-    const session = createSession(user.id, user.email);
-    const response = NextResponse.json({ authenticated: true, email: user.email }, { status: 201 });
-    response.cookies.set(SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: session.maxAge,
-    });
-    return response;
+    // The first account on an empty database may bootstrap the workspace once.
+    // The singleton UPDATE locks the row, so only one concurrent request can claim it.
+    const firstUsers = await sql`
+      WITH claimed AS (
+        UPDATE kemex_hub_auth_state
+        SET bootstrap_completed = true
+        WHERE id = 1 AND bootstrap_completed = false
+        RETURNING id
+      ), new_user AS (
+        INSERT INTO user_accounts (email, password_hash)
+        SELECT ${email}, ${passwordHash} FROM claimed
+        ON CONFLICT (email) DO NOTHING
+        RETURNING id, email
+      )
+      SELECT id, email FROM new_user
+    `;
+
+    const firstUser = firstUsers[0] as { id: string; email: string } | undefined;
+    if (firstUser) {
+      const response = NextResponse.json({ authenticated: true, email: firstUser.email }, { status: 201 });
+      return setSessionCookie(response, firstUser);
+    }
+
+    const existing = await sql`SELECT id FROM user_accounts WHERE email = ${email} LIMIT 1`;
+    if (existing.length) {
+      return NextResponse.json({ error: "يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل." }, { status: 409 });
+    }
+    return NextResponse.json(
+      { error: "إنشاء الحسابات الجديدة يحتاج رمز دعوة. سجّل الدخول واطلب من أحد أعضاء الفريق إنشاء رمز من لوحة التحكم." },
+      { status: 403 }
+    );
   } catch (error) {
     console.error("Registration failed:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json({ error: "تعذر إنشاء الحساب حاليًا. راجع إعدادات Neon وحاول مرة أخرى." }, { status: 500 });
+    return NextResponse.json({ error: "تعذر إنشاء الحساب حاليًا. تأكد من إعداد DATABASE_URL وجداول Neon ثم حاول مرة أخرى." }, { status: 500 });
   }
 }

@@ -11,11 +11,22 @@ export type Session = {
 };
 
 function sessionSecret() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || Buffer.byteLength(secret) < 32) {
-    throw new Error("SESSION_SECRET must be set to a random value of at least 32 bytes");
+  // SESSION_SECRET remains an optional independent key. If it is missing or too short,
+  // derive a stable, server-only signing key from the Neon connection string.
+  // Unlike randomBytes() at runtime, this value is identical across serverless instances.
+  const configuredSecret = process.env.SESSION_SECRET;
+  if (configuredSecret && Buffer.byteLength(configuredSecret) >= 32) {
+    return configuredSecret;
   }
-  return secret;
+
+  const databaseSecret = process.env.DATABASE_URL;
+  if (!databaseSecret || databaseSecret.length < 32) {
+    throw new Error("Set DATABASE_URL or configure SESSION_SECRET with at least 32 bytes");
+  }
+
+  return createHmac("sha256", databaseSecret)
+    .update("KEMEX-HUB/session-signing-key/v1")
+    .digest();
 }
 
 function signature(payload: string) {

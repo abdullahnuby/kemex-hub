@@ -33,6 +33,9 @@ function Inner() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [gap, setGap] = useState("7");
+  const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +102,33 @@ function Inner() {
     }
   }
 
+  async function createInvite() {
+    setInviteBusy(true);
+    setInviteMessage("");
+    setInvite(null);
+    try {
+      const result = await apiRequest<{ code: string; expiresAt: string }>("/api/auth/invites", {
+        method: "POST",
+      });
+      setInvite(result);
+      setInviteMessage("تم إنشاء رمز دعوة صالح لمدة 7 أيام. انسخه وشاركه مع الشخص المطلوب فقط.");
+    } catch (error) {
+      setInviteMessage(error instanceof Error ? error.message : "تعذر إنشاء رمز الدعوة.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function copyInvite() {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(invite.code);
+      setInviteMessage("تم نسخ رمز الدعوة.");
+    } catch {
+      setInviteMessage("انسخ الرمز يدويًا من الحقل. المتصفح لم يسمح بالنسخ التلقائي.");
+    }
+  }
+
   return (
     <>
       <div className="grid">
@@ -135,6 +165,26 @@ function Inner() {
         <p className="muted">
           النشر الأوتوماتيك بيتم من الجدولة (GitHub Actions) في المواعيد اللي إنت محددها هناك.
         </p>
+      </div>
+
+      <div className="card invite-manager-card">
+        <div className="invite-manager-heading">
+          <div>
+            <h2>دعوة عضو جديد</h2>
+            <p className="muted">أنشئ رمزًا تلقائيًا من التطبيق. الرمز يستخدم مرة واحدة وينتهي بعد 7 أيام.</p>
+          </div>
+          <button className="btn" onClick={createInvite} disabled={inviteBusy}>
+            {inviteBusy ? "جارٍ الإنشاء..." : "إنشاء رمز دعوة"}
+          </button>
+        </div>
+        {invite && (
+          <div className="invite-code-row">
+            <input aria-label="رمز الدعوة الجديد" readOnly value={invite.code} dir="ltr" onFocus={(event) => event.currentTarget.select()} />
+            <button className="btn ghost" onClick={copyInvite}>نسخ الرمز</button>
+            <span className="invite-expiry">ينتهي {fmt(invite.expiresAt)}</span>
+          </div>
+        )}
+        {inviteMessage && <p className="invite-message" role="status">{inviteMessage}</p>}
       </div>
 
       <div className="card">

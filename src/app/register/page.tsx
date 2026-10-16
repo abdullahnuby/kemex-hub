@@ -54,7 +54,7 @@ export default function RegisterPage() {
       <section className="auth-layout register-layout">
         <div className="auth-brand-panel">
           <Link href="/" className="auth-panel-brand"><BrandLockup subtitle /></Link>
-          <div className="auth-panel-content"><span className="auth-overline"><Icon name="spark" size={15} /> ابدأ مساحة عملك</span><h1>تنظيم أفضل<br /><span>يبدأ من هنا.</span></h1><p>أنشئ حساب فريقك للوصول إلى أدوات إدارة المحتوى ومتابعة النشر بطريقة أوضح وأكثر انتظامًا.</p><div className="register-benefit-card"><span className="register-benefit-icon"><Icon name="shield" size={20} /></span><div><b>تسجيل بالدعوة فقط</b><p>نحافظ على مساحة العمل خاصة بفريقك. ستحتاج إلى رمز الدعوة الذي يقدّمه مسؤول المنصة.</p></div></div></div>
+          <div className="auth-panel-content"><span className="auth-overline"><Icon name="spark" size={15} /> ابدأ مساحة عملك</span><h1>تنظيم أفضل<br /><span>يبدأ من هنا.</span></h1><p>أنشئ حسابك لإدارة المحتوى ومتابعة النشر من مساحة عمل واحدة.</p><div className="register-benefit-card"><span className="register-benefit-icon"><Icon name="shield" size={20} /></span><div><b>دعوات آمنة تُنشأ تلقائيًا</b><p>يمكن إنشاء أول حساب عند تهيئة قاعدة بيانات فارغة. بعد ذلك، تُنشأ رموز دعوة مؤقتة من لوحة التحكم ولا تحتاج إلى إعدادها في Vercel.</p></div></div></div>
           <div className="auth-panel-footer"><span className="auth-panel-orb" /><small>آمن. منظم. متصل بـ Neon.</small><small>© {new Date().getFullYear()} KEMEX-HUB</small></div>
         </div>
         <div className="auth-form-panel">
@@ -66,8 +66,8 @@ export default function RegisterPage() {
             <form className="auth-form" onSubmit={submit}>
               <label htmlFor="register-email">البريد الإلكتروني</label>
               <div className="input-with-icon"><span><Icon name="mail" size={18} /></span><input id="register-email" type="email" autoComplete="email" inputMode="email" placeholder="name@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} dir="ltr" /></div>
-              <label htmlFor="invite-code">رمز الدعوة</label>
-              <div className="input-with-icon"><span><Icon name="key" size={18} /></span><input id="invite-code" type="password" autoComplete="off" placeholder="أدخل رمز الدعوة الخاص بفريقك" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required maxLength={256} /></div>
+              <label htmlFor="invite-code">رمز الدعوة <span className="secure-label">اختياري لأول حساب فقط</span></label>
+              <div className="input-with-icon"><span><Icon name="key" size={18} /></span><input id="invite-code" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} dir="ltr" placeholder="يُدخل عند الانضمام بدعوة" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} maxLength={256} /></div>
               <div className="label-row"><label htmlFor="register-password">كلمة المرور</label><span className="secure-label">12 حرفًا على الأقل</span></div>
               <div className="input-with-icon password-control"><span><Icon name="lock" size={18} /></span><input id="register-password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="أنشئ كلمة مرور قوية" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} maxLength={1024} /><button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "إخفاء" : "إظهار"}</button></div>
               <label htmlFor="confirm-password">تأكيد كلمة المرور</label>
