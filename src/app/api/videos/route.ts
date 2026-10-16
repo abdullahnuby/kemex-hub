@@ -60,6 +60,7 @@ export async function POST(req: Request) {
         SELECT new_video.id, item.caption_text
         FROM new_video
         CROSS JOIN jsonb_array_elements_text(${JSON.stringify(captions)}::jsonb) AS item(caption_text)
+        RETURNING id
       )
       SELECT id FROM new_video
     `;

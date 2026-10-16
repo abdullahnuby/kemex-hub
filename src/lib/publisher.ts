@@ -25,6 +25,39 @@ type VideoRow = {
   captions: CaptionRow[];
 };
 
+function isCaptionRow(value: unknown): value is CaptionRow {
+  if (typeof value !== "object" || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "string" &&
+    typeof row.text === "string" &&
+    typeof row.times_used === "number" &&
+    (typeof row.last_used_at === "string" || row.last_used_at === null)
+  );
+}
+
+function parseVideoRow(row: Record<string, unknown>): VideoRow {
+  if (
+    typeof row.id !== "string" ||
+    typeof row.title !== "string" ||
+    typeof row.media_url !== "string" ||
+    typeof row.kind !== "string" ||
+    typeof row.times_posted !== "number" ||
+    !Array.isArray(row.captions) ||
+    !row.captions.every(isCaptionRow)
+  ) {
+    throw new Error("بيانات الفيديو من قاعدة البيانات غير صالحة");
+  }
+  return {
+    id: row.id,
+    title: row.title,
+    media_url: row.media_url,
+    kind: row.kind,
+    times_posted: row.times_posted,
+    captions: row.captions,
+  };
+}
+
 function pickCaption(captions: CaptionRow[]): CaptionRow {
   return [...captions].sort((a, b) => {
     if (a.times_used !== b.times_used) return a.times_used - b.times_used;
@@ -55,7 +88,7 @@ export async function runPublish(opts: {
     if (recent.length) return { status: "skipped_recent" };
   }
 
-  const videos: VideoRow[] = opts.videoId
+  const rows = opts.videoId
     ? await sql`
         SELECT v.id, v.title, v.media_url, v.kind, v.times_posted,
           COALESCE(
@@ -85,6 +118,7 @@ export async function runPublish(opts: {
         GROUP BY v.id
         ORDER BY v.times_posted ASC, v.last_posted_at ASC NULLS FIRST
       `;
+  const videos = rows.map(parseVideoRow);
 
   const candidates = videos.filter((video) => video.captions.length > 0);
   if (!candidates.length) {

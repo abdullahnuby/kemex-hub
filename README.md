@@ -23,7 +23,7 @@
 
 ### 1) Neon
 1. اعمل مشروع PostgreSQL على neon.tech.
-2. من SQL Editor نفّذ محتوى `supabase/schema.sql` لإنشاء جداول المحتوى والإعدادات وسجل النشر.
+2. من SQL Editor نفّذ محتوى `neon/schema.sql` لإنشاء جداول المحتوى والإعدادات وسجل النشر.
 3. انسخ pooled connection string إلى `DATABASE_URL` في إعدادات البيئة على Vercel. المتغير سري ويُستخدم على السيرفر فقط.
 
 ### 2) Supabase
